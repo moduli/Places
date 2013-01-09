@@ -7,7 +7,7 @@
 <html>
 <head>
 	<title>Places</title>
-	<?php include 'includes.php' ?>
+	<?php include 'php/includes.php' ?>
 </head>
 <body>
 
@@ -16,7 +16,7 @@
 <!-- HEADER        -->
 <!-- ============= -->
 <div id="header">
-<?php include 'header.php'; ?>
+<?php include 'php/header.php'; ?>
 </div>
 
 
@@ -26,7 +26,7 @@
 <div id="map">
 </div>
 
-<div id="info_div">
+<div id="add_div">
 	<form id="add_form">
 		<ul>
 			<li>
@@ -51,7 +51,7 @@
 			</li>
 			<li>
 				<span id="input_country">Country:</span>
-				<?php include 'countries.php' ?>
+				<?php include 'php/countries.php' ?>
 				<span id="data_country" class="infoform"></span>
 			</li>
 			<li>

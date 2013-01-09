@@ -78,7 +78,7 @@ function geocode(query_string, options) {
   			if (options.type == "update") {
   				// push update to server
   				$.ajax({
-			   		url: 'handler_update.php',
+			   		url: 'php/handler_update.php',
 			   		type: 'POST',
 			   		/* ! check to see which one is true
 			   		data: {
@@ -269,7 +269,7 @@ function validateForm() {
 		else {
 			// ADD TO DATABASE
 			$.ajax({
-		   		url: 'handler_add.php',
+		   		url: 'php/handler_add.php',
 		   		type: 'POST',
 		   		data: {
 		   			'name':name,
@@ -577,7 +577,7 @@ $(document).ready(function() {
 	// ----------------
 	// GET DATA FROM SQL
 	// ----------------
-	$.get('handler_get.php', function(data) {
+	$.get('php/handler_get.php', function(data) {
 		places_db = data;
 		keys = Object.keys(data[0]);
 
