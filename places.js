@@ -7,19 +7,16 @@
 //****************************************
 // VARIABLES 
 //****************************************
-var places_db,
-	keys = {};
+var keys;					// titles of database
 
-var map,				// reference to google map
-	geocoder,			// reference to google geocoder
-	places_db,			// contains information from database
-	table,				// reference to HTML table
-	open_infowindow,	// reference to currently open marker/infowindow
-	markers = [],		// containing all markers
-	temp_marker;		// reference to marker used when adding a new location
+var map,					// reference to google map
+	geocoder,				// reference to google geocoder	
+	table,					// reference to HTML table
+	markers = [],			// reference to all markers
+	active_marker = null;	// reference to active marker (user selected)
 
-var add_mode = false,	// flag: if adding a new location
-	edit_mode = false;	// flag: if editing existing locations
+var add_mode = false,		// flag: if adding a new location
+	edit_mode = false;		// flag: if editing existing locations
 	
 
 
@@ -33,15 +30,52 @@ var add_mode = false,	// flag: if adding a new location
 // create map instance
 //
 // ---------------------------
-function initializeMap(places) {
+function initializeMap() {
+	// create map
 	var mapOptions = {
           center: new google.maps.LatLng(20, 0),
           zoom: 2,
           mapTypeId: google.maps.MapTypeId.ROADMAP
         };
     map = new google.maps.Map(document.getElementById("map"), mapOptions);
+    // create geocoder
     geocoder = new google.maps.Geocoder();
 }
+function initMapEvents() {
+	// if user clicks map, close any open 
+    google.maps.event.addListener(map, 'click', function(event) {
+    	if (active_marker) {
+    		$("#info_div").css({'display':'none'});
+    		$("#editbuttonli").css({'display':'none'});
+
+    		// clear active marker
+    		active_marker = null;
+    	}
+    });
+   	// if user clicks marker, show information
+    $.each(markers, function(i) {
+		setMarkerEvent(markers[i]);
+    });
+}
+function setMarkerEvent(marker) {
+	google.maps.event.addListener(marker, 'click', function(event) {
+		// set this marker as active
+		active_marker = this;
+			// !! change icon to show it is active
+
+		// add information to info_div
+		$("#info_div form").empty();
+		$("#info_div #edit_form").append("<ul></ul>");
+		$.each(keys, function(j) {
+			$("#info_div #edit_form ul").append("<li>"+keys[j]+":  <span class='data'>"+ marker._data[keys[j]]+"</span></li>");
+		});
+
+		// show info_div 
+		$("#info_div").css({'display':'block'});
+		$("#editbuttonli").css({'display':'list-item'});
+	});
+}
+
 // ---------------------------
 //
 // populateMap
@@ -72,21 +106,16 @@ function populateMap(places) {
 //
 // ---------------------------
 function geocode(query_string, options) {
-	geocoder.geocode( { 'address': query_string}, function(results, status) {
+	geocoder.geocode( {'address': query_string}, function(results, status) {
   		if (status == google.maps.GeocoderStatus.OK) {
+  			// ====================
   			// if updating location when loading database
+  			// ====================
   			if (options.type == "update") {
   				// push update to server
   				$.ajax({
-			   		url: 'php/handler_update.php',
+			   		url: 'php/handler_updatelatlng.php',
 			   		type: 'POST',
-			   		/* ! check to see which one is true
-			   		data: {
-			   			'id':options.data.id, 
-			   			'lat':results[0].geometry.location.Xa, 
-			   			'lng':results[0].geometry.location.Ya
-			   		},
-			   		*/
 			   		data: {
 			   			'id':options.data.id, 
 			   			'lat':results[0].geometry.location.Ya, 
@@ -96,10 +125,11 @@ function geocode(query_string, options) {
 						// show update complete:
 			 	 	}
 				});
-
 				placeMarker(results[0].geometry.location, options.data);
   			}
+  			// ====================
   			// if user used the search box
+  			// ====================
   			else if (options.type == "search") {
   				map.setCenter(results[0].geometry.location);
   				map.setZoom(16);
@@ -117,10 +147,13 @@ function geocodeReverse(query_lat, query_lng, options) {
 	var latlng = new google.maps.LatLng(query_lat, query_lng);
 	geocoder.geocode({'latLng': latlng}, function(results, status) {
 	  	if (status == google.maps.GeocoderStatus.OK) {
-
+	  		// ====================
+	  		// ====================
 	  		if (options.type == "add") {
 
 	  		}
+	  		// ====================
+	  		// ====================
 	  		else if (options.type == "search") {
 	  			if (results[1]) {
 		        	map.setCenter(latlng);
@@ -134,48 +167,6 @@ function geocodeReverse(query_lat, query_lng, options) {
 	});
 }
 
-// ---------------------------
-//
-// placeMarker
-// add marker to map
-//
-// ---------------------------
-function placeMarker(location, data) {
-	var marker = new google.maps.Marker({
-		position: location,
-		map: map
-	});
-
-	if (data) {
-		// save id information to marker structure
-		marker._id = data.id;
-
-		// add infowindow
-		var infowindow = new google.maps.InfoWindow();
-		infowindow.setContent(data.Name);
-
-		google.maps.event.addListener(marker, 'click', function(event) {
-			if (open_infowindow) {
-				open_infowindow.close();
-			}
-			open_infowindow = infowindow;
-			infowindow.open(map, marker);
-
-			// show info_div
-			if (!add_mode) {
-				// show add form
-				$('#info_div').css({'display':'block'});
-				$('.addform').css({'display':'none'});
-				$('.infoform').css({'display':'inline'});
-			}
-
-		});
-
-		marker.setTitle(data.Name);
-	}
-
-	return marker;
-}
 
 // ---------------------------
 //
@@ -204,10 +195,250 @@ function submitSearch() {
 	}
 }
 
+// ---------------------------
+//
+// placeMarker
+// add marker to map
+//
+// ---------------------------
+function placeMarker(location, data) {
+	// create marker
+	var marker = new google.maps.Marker({
+		position: location,
+		map: map
+	});
 
+	if (data) {
+		// save id information to marker structure
+		marker._id = data.id;
+		marker._data = data;
+
+		// show name when hovering over marker
+		marker.setTitle(data.Name);
+	}
+
+	return marker;
+}
+
+
+
+//%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //****************************************
-// OTHER FUNCTIONS
+// MAP ENTRY FUNCTIONS
 //****************************************
+// ---------------------------
+//
+// initData
+// 
+//
+// ---------------------------
+function initData(data) {
+	titles = Object.keys(data[0]);
+	titles.splice($.inArray("id", titles), 1);
+	titles.splice($.inArray("Lat", titles), 1);
+	titles.splice($.inArray("Lng", titles), 1);
+	titles.splice($.inArray("LastModified", titles), 1);
+
+	return titles;
+}
+// ---------------------------
+//
+// populateAddForm
+//
+// ---------------------------
+function populateAddForm(places) {
+	// populate "Categories" pull-down menu
+	var categories = [];
+	$.each(places, function(i) {
+		categories.push(places[i].Category);
+	});
+	var unique = getUnique(categories);
+	unique.sort();
+	$("#categoryoptions").append($("<option>")
+			.attr("value", "")
+			.attr("disabled", "disabled")
+			.attr("selected", "selected")
+			.text("Select an option")
+	);
+	$.each(unique, function(i) {
+		$("#categoryoptions").append($("<option></option>")
+			.attr("value", unique[i])
+			.text(unique[i]));
+	});
+	$("#categoryoptions").append($("<option>")
+			.attr("value", "custom")
+			.text("Add new category...")
+	);
+
+
+}
+
+// ---------------------------
+//
+// toggleAddMode
+//
+// ---------------------------
+function toggleAddMode() {
+	// turn off edit mode
+	if (edit_mode) {
+		toggleEditMode();
+	}
+
+	// OFF
+	if (add_mode) {
+		add_mode = false;
+
+		$('#addbutton').css({'color':'blue'});	
+		$('#cancelbuttonli').css({'display':'none'});
+
+		// restore events
+		google.maps.event.clearListeners(map);	
+		initMapEvents();
+
+		// hide information window
+		$('#info_div').css({'display':'none'});
+
+
+		// if a marker was placed on the map, remove it
+		if (active_marker) {
+			// remove temporary marker
+			active_marker.setMap(null);
+			active_marker = null;
+
+			// reset add_form
+			$("#add_form")[0].reset();
+			$(".input_error").remove();	// remove any error text
+		}
+	}
+	// ON
+	else {
+		add_mode = true;
+		$('#addbutton').css({'color':'red'});
+		$('#editbuttonli').css({'display':'none'});
+		$('#cancelbuttonli').css({'display':'list-item'});
+		$("#info_div form").empty();
+		active_marker = null;
+		
+		// remove other events
+		google.maps.event.clearListeners(map);
+		$.each(markers, function(i) {
+			google.maps.event.clearListeners(markers[i]);		
+		});
+
+		// add event: when user clicks map, creates a marker that is movable
+		// defines new location to add to database
+		google.maps.event.addListener(map, 'click', function(event) {
+			// drop a marker
+			if (!active_marker) {
+				active_marker = placeMarker(event.latLng);
+				active_marker.setDraggable(true);	
+
+				// show add form
+				$("#info_div #add_form").append("<ul></ul>");
+				$.each(keys, function(j) {
+					$("#info_div #add_form ul").append("<li>"+keys[j]+":  <input type='text' name='"+keys[j]+"' autocomplete='off'></li>");
+				});
+				$("#info_div #add_form").append('<input type="button" value="Submit" onclick="validateForm()">');
+				$("#info_div").css({'display':'block'});
+			}
+			// update existing marker
+			else {
+				active_marker.setPosition(event.latLng);
+			}
+		});
+	}
+}
+// ---------------------------
+//
+// cancelAdd
+//
+// ---------------------------
+function cancelMode() {
+	// turn off add mode
+	if (add_mode) {
+		toggleAddMode();	
+	}
+	// turn off edit mode
+	if (edit_mode) {
+		toggleEditMode();
+	}
+}
+
+// ---------------------------
+//
+// toggleEditMode
+//
+// ---------------------------
+function toggleEditMode() {
+	// turn off add mode
+	if (add_mode) {
+		toggleAddMode();
+	}
+
+	// turn off edit mode
+	if (edit_mode) {
+		edit_mode = false;
+
+		// hide edit buttons
+		$('#editbutton').css({'color':'blue'});	
+		$('#addbuttonli').css({'display':'list-item'});
+		$('#cancelbuttonli').css({'display':'none'});
+
+		// return events to normal state
+		google.maps.event.clearListeners(active_marker);
+		initMapEvents();
+		active_marker.setDraggable(false);
+
+		// add information to info_div
+		$("#info_div form").empty();
+		$("#info_div #edit_form").append("<ul></ul>");
+		$.each(keys, function(j) {
+			$("#info_div #edit_form ul").append("<li>"+keys[j]+":  <span class='data'>"+ active_marker._data[keys[j]]+"</span></li>");
+		});
+
+		// return edited marker to position
+		active_marker.setPosition(new google.maps.LatLng(active_marker._data.Lat, active_marker._data.Lng));
+
+	}
+	// turn on edit mode
+	else {
+		edit_mode = true;
+
+		// show edit buttons
+		$('#editbutton').css({'color':'red'});
+		$('#addbuttonli').css({'display':'none'});
+		$('#cancelbuttonli').css({'display':'list-item'});
+
+		// remove other events
+		google.maps.event.clearListeners(map);
+		$.each(markers, function(i) {
+			google.maps.event.clearListeners(markers[i]);		
+		});
+		
+		// add event: in edit mode, marker can be modified
+		active_marker.setDraggable(true);
+
+		// track the marker that was moved and the lat/lng position it was moved to
+		/*
+		google.maps.event.addListener(active_marker, 'dragend', function(event) {
+			changed.id = this._id;
+			changed.lat = this.getPosition().lat();
+			changed.lng = this.getPosition().lng();
+		});
+		*/
+		// set info to be editable
+		$("#info_div form").empty();
+		$("#info_div #edit_form").append("<ul></ul>");
+		$.each(keys, function(j) {
+			$("#info_div #edit_form ul").append("<li>"+keys[j]+":  <input type='text' name='"+keys[j]+"' autocomplete='off' value='"+active_marker._data[keys[j]]+"'></li>");
+		});
+		$("#info_div #edit_form").append('<input type="button" value="Submit" onclick="validateForm()">');
+
+
+	}
+
+}
+
 // ---------------------------
 //
 // validateForm
@@ -216,58 +447,67 @@ function submitSearch() {
 // ---------------------------
 //http://www.yourhtmlsource.com/javascript/formvalidation.html
 function validateForm() {
-	if (!temp_marker) {
-		alert("Need to select location on map");
+	// ====================
+	// data checking
+	// ====================
+	var current_form;
+	if (add_mode)
+		current_form = "add_form";
+	else if (edit_mode)
+		current_form = "edit_form";
+
+	// look for input errors
+	var error_flag = false;
+	var name = document.forms[current_form]["Name"].value;
+	if (name == null || name == "") {
+		$("#input_name").append("<span class='input_error'> Required</span>");
+		error_flag = true;
+	}
+	var street = document.forms[current_form]["Street"].value;
+	if (street == null || street == "") {
+		$("#input_street").append("<span class='input_error'> Required</span>");
+		error_flag = true;
+	}
+	var city = document.forms[current_form]["City"].value;
+	if (city == null || city == "") {
+		$("#input_city").append("<span class='input_error'> Required</span>");
+		error_flag = true;
+	}
+	var state = document.forms[current_form]["State"].value;
+	if (state == null || state == "") {
+		$("#input_state").append("<span class='input_error'> Required</span>");
+		error_flag = true;
+	}
+	var country = document.forms[current_form]["Country"].value;
+	if (country == null || country == "") {
+		$("#input_country").append("<span class='input_error'> Required</span>");
+		error_flag = true;
+	}
+	var category = document.forms[current_form]["Category"].value;
+	if (category == null || category == "") {
+		$("#input_category").append("<span class='input_error'> Required</span>");
+		error_flag = true;
+	}
+	var lat, lng;
+	lat = active_marker.position.Ya;
+	lng = active_marker.position.Za;
+	if (!isNumber(lat) || !isNumber(lng)) {
+
+			error_flag = true;
+	}
+
+	// ====================
+	// send data to database
+	// ====================
+	if (error_flag) {
+		console.log("Error_Flag");
 		return false;
 	}
+	// handle data
 	else {
-		var error_flag = false;
-
-		var name = document.forms["add_form"]["name"].value;
-		if (name == null || name == "") {
-			$("#input_name").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var street = document.forms["add_form"]["street"].value;
-		if (street == null || street == "") {
-			$("#input_street").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var city = document.forms["add_form"]["city"].value;
-		if (city == null || city == "") {
-			$("#input_city").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var state = document.forms["add_form"]["state"].value;
-		if (state == null || state == "") {
-			$("#input_state").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var country = document.forms["add_form"]["country"].value;
-		if (country == null || country == "") {
-			$("#input_country").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var date = document.forms["add_form"]["date"].value;
-		if (date == null || date == "") {
-			$("#input_date").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var category = document.forms["add_form"]["category"].value;
-		if (category == null || category == "") {
-			$("#input_category").append("<span class='input_error'> Required</span>");
-			error_flag = true;
-		}
-		var lat = temp_marker.position.Ya;
-		var lng = temp_marker.position.Za;
-		var people = document.forms["add_form"]["people"].value;
-		var comments = document.forms["add_form"]["comments"].value;
-
-		if (error_flag) {
-			return false;
-		}
-		else {
-			// ADD TO DATABASE
+		// ADD TO DATABASE
+		if (add_mode) {
+			
 			$.ajax({
 		   		url: 'php/handler_add.php',
 		   		type: 'POST',
@@ -279,56 +519,59 @@ function validateForm() {
 		   			'country':country,
 		   			'latitude':lat, 
 		   			'longitude':lng,
-		   			'date':date,
 		   			'category':category,
-		   			'people':people,
-		   			'comments':comments
 		   		},
-		   		success: function(response) {
+		   		success: function(id) {
 					// show update complete:
-
 
 					// drop marker on clicked position
 
+					// add marker data
+					active_marker._id = id;
+					active_marker._data = {};
+					$.each(keys, function(i) {
+						active_marker._data[keys[i]] = document.forms[current_form][keys[i]].value;
+					});
+					active_marker._data["Lat"] = lat;
+					active_marker._data["Lng"] = lng;
+					setMarkerEvent(active_marker);
 
-					// remove temporary marker reference
-					temp_marker = 0;
-
-					// reset add_form
-					$("#add_form")[0].reset();
-					$(".input_error").remove();	// remove any error text
-					$('#info_div').css({'display':'none'});
+					active_marker = null;
+					toggleAddMode();
 		 	 	}
 			});
 		}
+		// SEND EDITED CHANGES
+		else if (edit_mode) {
+			$.ajax({
+				url: 'php/handler_updateedits.php',
+				type: 'POST',
+				data: {
+					'id':active_marker._id,
+					'name':name,
+		   			'street':street,
+		   			'city':city,
+		   			'state':state,
+		   			'country':country,
+		   			'latitude':lat, 
+		   			'longitude':lng,
+		   			'category':category,
+				},
+				success: function(response) {
+					// change marker data
+					$.each(keys, function(i) {
+						active_marker._data[keys[i]] = document.forms[current_form][keys[i]].value;
+					});
+					active_marker._data["Lat"] = lat;
+					active_marker._data["Lng"] = lng;
+
+					toggleEditMode();
+				}
+			});
+		}	
 	}
+	
 	return true;
-}
-// ---------------------------
-//
-// isNumber
-// checks if input is a number
-//
-// ---------------------------
-function isNumber(n) {
-	return !isNaN(parseFloat(n)) && isFinite(n);
-}
-// ---------------------------
-//
-// getUnique
-// returns unique values of a property
-//
-// ---------------------------
-function getUnique(data) {
-	// find unique values of selected property
-	var unique = data.filter(function(itm, i, a) {
-		return i==a.indexOf(itm);
-	});
-	// in case no unique values, initialize unique variable
-	if (unique == null)
-		unique = 0;
-		
-	return unique;
 }
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -383,183 +626,34 @@ function populateTable(places) {
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //****************************************
-// MAP ENTRY FUNCTIONS
+// UTILITY FUNCTIONS
 //****************************************
 // ---------------------------
 //
-// populateAddForm
+// isNumber
+// checks if input is a number
 //
 // ---------------------------
-function populateAddForm(places) {
-	// populate "Categories" pull-down menu
-	var categories = [];
-	$.each(places, function(i) {
-		categories.push(places[i].Category);
+function isNumber(n) {
+	return !isNaN(parseFloat(n)) && isFinite(n);
+}
+// ---------------------------
+//
+// getUnique
+// returns unique values of a property
+//
+// ---------------------------
+function getUnique(data) {
+	// find unique values of selected property
+	var unique = data.filter(function(itm, i, a) {
+		return i==a.indexOf(itm);
 	});
-	var unique = getUnique(categories);
-	unique.sort();
-	$("#categoryoptions").append($("<option>")
-			.attr("value", "")
-			.attr("disabled", "disabled")
-			.attr("selected", "selected")
-			.text("Select an option"));
-	$.each(unique, function(i) {
-		$("#categoryoptions").append($("<option></option>")
-			.attr("value", unique[i])
-			.text(unique[i]));
-	});
-	$("#categoryoptions").append($("<option>")
-			.attr("value", "custom")
-			.text("Add new category..."));
-
-
+	// in case no unique values, initialize unique variable
+	if (unique == null)
+		unique = 0;
+		
+	return unique;
 }
-
-// ---------------------------
-//
-// toggleAddMode
-//
-// ---------------------------
-function toggleAddMode() {
-	// turn off edit mode
-	if (edit_mode) {
-		toggleEditMode();
-	}
-
-	// OFF
-	if (add_mode) {
-		add_mode = false;
-		$('#addbutton').css({'color':'blue'});	
-		$('#cancelbuttonli').css({'display':'none'});
-		google.maps.event.clearListeners(map);	// stop click-to-add event
-
-		// hide information window
-		$('#info_div').css({'display':'none'});
-
-		// if a marker was placed on the map, remove it
-		if (temp_marker) {
-			// remove temporary marker
-			temp_marker.setMap(null);
-			temp_marker = 0;
-
-			// reset add_form
-			$("#add_form")[0].reset();
-			$(".input_error").remove();	// remove any error text
-		}
-	}
-	// ON
-	else {
-		add_mode = true;
-		$('#addbutton').css({'color':'red'});
-		$('#cancelbuttonli').css({'display':'list-item'});
-		$('.addform').css({'display':'inline'});
-
-		// add event: when user clicks map, creates a marker that is movable
-		// defines new location to add to database
-		google.maps.event.addListener(map, 'click', function(event) {
-			// drop a marker
-			if (!temp_marker) {
-				temp_marker = placeMarker(event.latLng);
-				temp_marker.setDraggable(true);	
-
-				// show add form
-				$('#info_div').css({'display':'block'});
-			}
-			// update existing marker
-			else {
-				temp_marker.setPosition(event.latLng);
-			}
-		});
-	}
-}
-// ---------------------------
-//
-// cancelAdd
-//
-// ---------------------------
-function cancelMode() {
-	// turn off add mode
-	if (add_mode) {
-		toggleAddMode();	
-	}
-	// turn off edit mode
-	if (edit_mode) {
-		toggleEditMode();
-	}
-}
-
-// ---------------------------
-//
-// toggleEditMode
-//
-// ---------------------------
-function toggleEditMode() {
-	// turn off add mode
-	if (add_mode) {
-		toggleAddMode();
-	}
-
-	// turn off edit mode
-	if (edit_mode) {
-		edit_mode = false;
-		$('#editbutton').css({'color':'blue'});	
-		$('#cancelbuttonli').css({'display':'none'});
-		$('.infoform').css({'display':'none'});
-
-		google.maps.event.clearListeners(map);
-
-		// hide edit form
-		//$('#info_div').css({'display':'none'});
-	}
-	// turn on add mode
-	else {
-		edit_mode = true;
-		$('#editbutton').css({'color':'red'});	
-		$('#cancelbuttonli').css({'display':'list-item'});
-		$('.infoform').css({'display':'inline'});
-
-		// add event: when user clicks map, creates a marker that is movable
-		// modifies location
-		$.each(markers, function() {
-			// allow marker to be movable for editing purposes
-			this.setDraggable(true);
-
-			// track the marker that was moved and the lat/lng position it was moved to
-			google.maps.event.addListener(this, 'dragend', function(event) {
-				var changed = {};
-				changed.id = this._id;
-				changed.lat = this.getPosition().lat();
-				changed.lng = this.getPosition().lng();
-			});
-		});
-		/*
-		google.maps.event.addListener(map, 'click', function(event) {
-			// drop a marker
-			if (!temp_marker) {
-				temp_marker = placeMarker(event.latLng);
-				temp_marker.setDraggable(true);	
-
-				// show add form
-				$('#info_div').css({'display':'block'})
-			}
-			// update existing marker
-			else {
-				temp_marker.setPosition(event.latLng);
-			}
-		});
-		*/
-	}
-
-}
-
-function saveChanges() {
-	if (edit_mode) {
-
-
-	}
-
-}
-
 
 //%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 //****************************************
@@ -578,23 +672,23 @@ $(document).ready(function() {
 	// GET DATA FROM SQL
 	// ----------------
 	$.get('php/handler_get.php', function(data) {
-		places_db = data;
-		keys = Object.keys(data[0]);
+		keys = initData(data);
 
 		// ----------------
 		// SETUP ADD_FORM
 		// ----------------
-		populateAddForm(places_db);
+		populateAddForm(data);
 
 		// ----------------
 		// SETUP TABLE
 		// ----------------
-		//populateTable(places_db);
+		//populateTable(data);
 
 		// ----------------
 		// SETUP MAP
 		// ----------------
-		populateMap(places_db);
+		populateMap(data);
+		initMapEvents();
 
 		
 		// Loading Complete

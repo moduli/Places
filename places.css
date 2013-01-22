@@ -1,3 +1,6 @@
+/* ============
+       DIV
+	=============== */ 
 #map {
 	height: 600px;
 	width: 600px;
@@ -10,11 +13,9 @@
 	padding-left: 50px;
 }
 
-.input_error {
-	color: red;
-}
-
-
+/* ============
+       NAV
+	=============== */ 
 #cancelbuttonli {
 	display: none;
 }
@@ -24,11 +25,17 @@
 #savebuttonli {
 	display: none;
 }
-
-
-.addform {
+#okbuttonli {
 	display: none;
 }
-.infoform {
+/* ============
+       INFO
+	=============== */ 
+
+#info_div {
 	display: none;
+}
+
+.input_error {
+	color: red;
 }

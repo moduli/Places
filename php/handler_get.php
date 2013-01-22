@@ -13,7 +13,7 @@ include 'connect_db.php';
 // GET DATA
 // ----------------
 // get data from database
-$selected_data = $pdo->query('SELECT * FROM places');
+$selected_data = $pdo->query('SELECT * FROM places ORDER BY id ASC');
 
 // cycle through each row of data, store each row in an array
 $places = array();

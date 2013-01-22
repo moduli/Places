@@ -74,6 +74,9 @@ $q = "INSERT INTO places (Name, Street, City, State, Country, Lat, Lng, Category
 $q = $pdo->prepare($q);
 $q->execute($data);
 
+$id = $pdo->lastInsertId();
+echo $id;
+
 // ----------------
 // DATABASE CLOSE
 // ----------------
